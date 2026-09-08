@@ -42,6 +42,7 @@ function initApp() {
   // Load container elements if present
   loadHeader();
   loadFooter();
+  loadInitialMain();
 
   // Apply language state
   setLanguage(currentLang);
@@ -60,27 +61,21 @@ function loadHeader() {
   const headerContainer = document.getElementById('header-container');
   if (!headerContainer) return;
 
-  fetch('header.html')
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      return res.text();
-    })
+  const tryFetch = (path) => fetch(path).then(res => {
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.text();
+  });
+
+  tryFetch('views/header.html')
+    .catch(() => tryFetch('header.html'))
+    .catch(() => tryFetch('../views/header.html'))
     .then(html => {
       headerContainer.innerHTML = html;
       initHeaderEvents();
     })
     .catch(() => {
-      fetch('../views/header.html')
-        .then(res => res.text())
-        .then(html => {
-          headerContainer.innerHTML = html;
-          initHeaderEvents();
-        })
-        .catch(() => {
-          // Robust Fallback if fetch fails (e.g. file:// context)
-          headerContainer.innerHTML = HEADER_FALLBACK;
-          initHeaderEvents();
-        });
+      headerContainer.innerHTML = HEADER_FALLBACK;
+      initHeaderEvents();
     });
 }
 
@@ -98,26 +93,50 @@ function loadFooter() {
   const footerContainer = document.getElementById('footer-container');
   if (!footerContainer) return;
 
-  fetch('footer.html')
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      return res.text();
-    })
+  const tryFetch = (path) => fetch(path).then(res => {
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.text();
+  });
+
+  tryFetch('views/footer.html')
+    .catch(() => tryFetch('footer.html'))
+    .catch(() => tryFetch('../views/footer.html'))
     .then(html => {
       footerContainer.innerHTML = html;
       initSeamlessNavigation();
       applyTranslations(currentLang);
     })
-    .catch(() => {
-      fetch('../views/footer.html')
-        .then(res => res.text())
-        .then(html => {
-          footerContainer.innerHTML = html;
-          initSeamlessNavigation();
-          applyTranslations(currentLang);
-        })
-        .catch(e => console.error('No se pudo cargar el footer:', e));
-    });
+    .catch(e => console.error('No se pudo cargar el footer:', e));
+}
+
+/**
+ * Carga dinámicamente la vista inicial (views/home.html) en el elemento <main> si está vacío
+ */
+function loadInitialMain() {
+  const mainEl = document.querySelector('main');
+  if (!mainEl || mainEl.children.length > 0) return;
+
+  const tryFetch = (path) => fetch(path).then(res => {
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.text();
+  });
+
+  tryFetch('views/home.html')
+    .catch(() => tryFetch('home.html'))
+    .catch(() => tryFetch('../views/home.html'))
+    .then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newMain = doc.querySelector('main');
+      if (newMain) {
+        mainEl.innerHTML = newMain.innerHTML;
+        initSeamlessNavigation();
+        initAccordions();
+        initSmoothScroll();
+        applyTranslations(currentLang);
+      }
+    })
+    .catch(e => console.error('No se pudo cargar la vista inicial en <main>:', e));
 }
 
 /**
@@ -142,11 +161,14 @@ function navigateToPage(url) {
     return;
   }
 
-  fetch(url)
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    })
+  const tryFetch = (path) => fetch(path).then(res => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  });
+
+  tryFetch(url)
+    .catch(() => tryFetch(`views/${url}`))
+    .catch(() => tryFetch(`../views/${url}`))
     .then(html => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
@@ -160,8 +182,8 @@ function navigateToPage(url) {
         highlightActiveNav();
         initAccordions();
         initSmoothScroll();
+        initSeamlessNavigation();
 
-        // Re-apply translations
         applyTranslations(currentLang);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
